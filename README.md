@@ -45,7 +45,7 @@ app/src/main/java/com/example/bts_task/
 
 | Buyurtmalar | Yangi buyurtma | Tafsilotlar |
 |-------------|----------------|-------------|
-| ![Orders](screenshots/orders.png) | ![New Order](screenshots/new_order.png) | ![Detail](screenshots/order_detail.png) |
+| ![Orders](screenshots/orders_v2.png) | ![New Order](screenshots/new_order_v2.png) | ![Detail](screenshots/order_detail_v2.png) |
 
 ## O'rnatish
 
