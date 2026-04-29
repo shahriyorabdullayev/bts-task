@@ -1,8 +1,11 @@
 package com.example.bts_task.presentation.new_order
 
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
@@ -86,6 +89,23 @@ fun NewOrderScreen(
         viewModel.events.collect { ev ->
             if (ev is NewOrderEvent.Submitted) onSubmitted()
         }
+    }
+
+    val permLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) viewModel.onLocationGranted() else viewModel.onLocationDenied()
+    }
+
+    LaunchedEffect(Unit) {
+        permLauncher.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
     }
 
     val mapHolder = remember { Holder<MapView>() }

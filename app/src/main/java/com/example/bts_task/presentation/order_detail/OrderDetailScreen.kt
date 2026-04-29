@@ -23,6 +23,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -34,12 +36,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.example.bts_task.R
 import com.example.bts_task.presentation.common.BitmapHelper
 import com.example.bts_task.presentation.common.YandexMapView
 import com.example.bts_task.ui.theme.BrandGreen
@@ -61,8 +67,10 @@ import com.yandex.mapkit.geometry.Geometry
 import com.yandex.mapkit.geometry.Point
 import com.yandex.mapkit.geometry.Polyline
 import com.yandex.mapkit.map.CameraPosition
+import com.yandex.mapkit.map.IconStyle
 import com.yandex.mapkit.map.PlacemarkMapObject
 import com.yandex.mapkit.map.PolylineMapObject
+import com.yandex.mapkit.map.RotationType
 import com.yandex.mapkit.mapview.MapView
 import com.yandex.runtime.Error
 import com.yandex.runtime.image.ImageProvider
@@ -70,6 +78,16 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
 private class Holder<T> { var value: T? = null }
+
+private fun bearingDeg(from: Point, to: Point): Float {
+    val lat1 = Math.toRadians(from.latitude)
+    val lat2 = Math.toRadians(to.latitude)
+    val dLng = Math.toRadians(to.longitude - from.longitude)
+    val y = Math.sin(dLng) * Math.cos(lat2)
+    val x = Math.cos(lat1) * Math.sin(lat2) -
+            Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng)
+    return ((Math.toDegrees(Math.atan2(y, x)) + 360.0) % 360.0).toFloat()
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -102,6 +120,8 @@ fun OrderDetailScreen(
     val userMarker = remember { Holder<PlacemarkMapObject>() }
     val routeLine = remember { Holder<PolylineMapObject>() }
     val drivingSession = remember { Holder<DrivingSession>() }
+    var routePoints by remember { mutableStateOf<List<Point>?>(null) }
+    var navStarted by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Color.White,
@@ -167,6 +187,7 @@ fun OrderDetailScreen(
                         poly.setStrokeColor(0xFF66BB6A.toInt())
                         poly.strokeWidth = 5f
                         routeLine.value = poly
+                        routePoints = route.geometry.points.toList()
 
                         val w = mv.mapWindow.width().toFloat()
                         val h = mv.mapWindow.height().toFloat()
@@ -203,19 +224,55 @@ fun OrderDetailScreen(
                 )
             }
 
-            LaunchedEffect(state.currentLocation, mapHolder.value) {
+            LaunchedEffect(state.currentLocation, mapHolder.value, routePoints, navStarted) {
+                if (!navStarted) return@LaunchedEffect
                 val mv = mapHolder.value ?: return@LaunchedEffect
                 val loc = state.currentLocation ?: return@LaunchedEffect
                 val pt = Point(loc.latitude, loc.longitude)
                 val existing = userMarker.value
                 if (existing == null) {
-                    userMarker.value = mv.mapWindow.map.mapObjects.addPlacemark(
+                    val placemark = mv.mapWindow.map.mapObjects.addPlacemark(
                         pt,
-                        ImageProvider.fromBitmap(BitmapHelper.dot(ctx, 0xFF1976D2.toInt()))
+                        ImageProvider.fromBitmap(
+                            BitmapHelper.fromVector(ctx, R.drawable.ic_navigator, sizeDp = 40f)
+                        ),
+                        IconStyle().setRotationType(RotationType.ROTATE)
                     )
+                    userMarker.value = placemark
                 } else {
-                    existing.geometry = pt
+                    val from = existing.geometry
+                    val bearing = bearingDeg(from, pt)
+                    existing.direction = bearing
+                    val durationMs = 900L
+                    val startNanos = withFrameNanos { it }
+                    while (true) {
+                        val now = withFrameNanos { it }
+                        val elapsedMs = (now - startNanos) / 1_000_000L
+                        val t = (elapsedMs.toFloat() / durationMs).coerceIn(0f, 1f)
+                        val lat = from.latitude + (pt.latitude - from.latitude) * t
+                        val lng = from.longitude + (pt.longitude - from.longitude) * t
+                        existing.geometry = Point(lat, lng)
+                        if (t >= 1f) break
+                    }
                 }
+
+                val pts = routePoints ?: return@LaunchedEffect
+                if (pts.size < 2) return@LaunchedEffect
+                var nearestIdx = 0
+                var minDist = Double.MAX_VALUE
+                pts.forEachIndexed { i, p ->
+                    val d = com.example.bts_task.domain.util.Distance.haversineKm(
+                        com.example.bts_task.domain.model.GeoPoint(loc.latitude, loc.longitude),
+                        com.example.bts_task.domain.model.GeoPoint(p.latitude, p.longitude)
+                    )
+                    if (d < minDist) {
+                        minDist = d
+                        nearestIdx = i
+                    }
+                }
+                if (nearestIdx >= pts.size - 1) return@LaunchedEffect
+                val remaining = listOf(pt) + pts.subList(nearestIdx + 1, pts.size)
+                routeLine.value?.geometry = Polyline(remaining)
             }
 
             Surface(
@@ -267,6 +324,46 @@ fun OrderDetailScreen(
                             city = dSub,
                             isPickup = false
                         )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        if (!navStarted) {
+                            Button(
+                                onClick = { navStarted = true },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = BrandGreen,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Text("Marshrutni boshlash")
+                            }
+                        } else {
+                            Button(
+                                onClick = {
+                                    navStarted = false
+                                    val mv = mapHolder.value
+                                    val mapObjects = mv?.mapWindow?.map?.mapObjects
+                                    userMarker.value?.let { mapObjects?.remove(it) }
+                                    userMarker.value = null
+                                    val full = routePoints
+                                    if (full != null && full.size >= 2) {
+                                        routeLine.value?.geometry = Polyline(full)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFC62828),
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Text("Marshrutni tugatish")
+                            }
+                        }
                     }
                 }
             }

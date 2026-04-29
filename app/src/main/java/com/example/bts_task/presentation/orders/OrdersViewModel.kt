@@ -31,7 +31,7 @@ data class OrderUi(
 )
 
 data class OrdersState(
-    val items: List<OrderUi> = emptyList(),
+    val items: List<OrderUi>? = null,
     val query: String = "",
     val hasLocationPermission: Boolean = false
 )
@@ -87,7 +87,7 @@ class OrdersViewModel(
     }
 
     private fun List<Order>.toUi(currentLocation: GeoPoint?): List<OrderUi> {
-        val mapped = map { o ->
+        return map { o ->
             val (pTitle, pSub) = AddressFormat.split(o.pickupAddress)
             val (dTitle, dSub) = AddressFormat.split(o.destinationAddress)
             OrderUi(
@@ -99,12 +99,6 @@ class OrdersViewModel(
                 destinationSubtitle = dSub,
                 distanceKm = Distance.haversineKm(o.pickupPoint, o.destinationPoint)
             )
-        }
-        return if (currentLocation != null) {
-            mapped.sortedBy { o ->
-                val order = this.find { it.id == o.id } ?: return@sortedBy Double.MAX_VALUE
-                Distance.haversineKm(currentLocation, order.pickupPoint)
-            }
-        } else mapped
+        }.sortedBy { it.distanceKm ?: Double.MAX_VALUE }
     }
 }

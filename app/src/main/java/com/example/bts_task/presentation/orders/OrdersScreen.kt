@@ -3,6 +3,11 @@ package com.example.bts_task.presentation.orders
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,6 +62,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -167,47 +174,113 @@ fun OrdersScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (state.items.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+            val items = state.items
+            when {
+                items == null -> {
+                    LazyColumn(
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 16.dp,
+                            bottom = 16.dp + contentPadding.calculateBottomPadding()
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Inbox,
-                            contentDescription = null,
-                            tint = IconGrey,
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Text(
-                            text = "Buyurtmalar yo'q",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = TextGrey
-                        )
+                        items(5) { ShimmerCard() }
                     }
                 }
-                return@Column
-            }
-            LazyColumn(
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 16.dp,
-                    bottom = 16.dp + contentPadding.calculateBottomPadding()
-                ),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(state.items, key = { it.id }) { ui ->
-                    OrderCard(
-                        ui = ui,
-                        onClick = { onOrderClick(ui.id) },
-                        onDelete = { viewModel.deleteOrder(ui.id) }
-                    )
+                items.isEmpty() -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Inbox,
+                                contentDescription = null,
+                                tint = IconGrey,
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Text(
+                                text = "Buyurtmalar yo'q",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = TextGrey
+                            )
+                        }
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 16.dp,
+                            bottom = 16.dp + contentPadding.calculateBottomPadding()
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(items, key = { it.id }) { ui ->
+                            OrderCard(
+                                ui = ui,
+                                onClick = { onOrderClick(ui.id) },
+                                onDelete = { viewModel.deleteOrder(ui.id) }
+                            )
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ShimmerCard() {
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val translate by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1100, easing = LinearEasing)
+        ),
+        label = "shimmerTranslate"
+    )
+    val brush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFFE0E0E0),
+            Color(0xFFF5F5F5),
+            Color(0xFFE0E0E0)
+        ),
+        start = Offset(translate - 300f, 0f),
+        end = Offset(translate, 0f)
+    )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(6.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.4f)
+                    .height(16.dp)
+                    .background(brush, RoundedCornerShape(4.dp))
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .height(14.dp)
+                    .background(brush, RoundedCornerShape(4.dp))
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.7f)
+                    .height(14.dp)
+                    .background(brush, RoundedCornerShape(4.dp))
+            )
         }
     }
 }
