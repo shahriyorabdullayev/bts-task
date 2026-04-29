@@ -59,7 +59,7 @@ app/src/main/java/com/example/bts_task/
 
 1. Repository'ni klonlash:
    ```bash
-   git clone https://github.com/<username>/btstask.git
+   git clone https://github.com/shahriyorabdullayev/btstask.git
    cd btstask
    ```
 
@@ -79,7 +79,3 @@ app/src/main/java/com/example/bts_task/
 
 - `INTERNET`, `ACCESS_NETWORK_STATE` — xarita va geocoder so'rovlari uchun
 - `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` — foydalanuvchi joylashuvigacha bo'lgan masofani hisoblash uchun
-
-## Seed data
-
-Birinchi ishga tushirishda baza Toshkent, Samarqand, Buxoro shaharlaridagi 3 ta namuna buyurtma bilan to'ldiriladi.
